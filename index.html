@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Life Manager Hybrid Brief — #BuildHybridAI 2026 prototype</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  textarea { width: 100%; min-height: 140px; }
+  button { padding: .6rem 1.2rem; font-size: 1rem; cursor: pointer; }
+  .route { display: inline-block; padding: .1rem .5rem; border-radius: 4px; font-size: .85rem; margin-right: .4rem; }
+  .device { background: #d7f0d7; } .cloud { background: #d7e6f0; } .proto { background: #f0e6d7; }
+  #out { white-space: pre-wrap; border: 1px solid #ccc; padding: 1rem; margin-top: 1rem; min-height: 80px; }
+  .note { color: #555; font-size: .9rem; }
+</style>
+</head>
+<body>
+<h1>Life Manager — Hybrid Daily Brief</h1>
+<p>Paste today's private notes and schedule. A short private draft is made
+<strong>on-device</strong>; a longer, polished briefing is finished in the
+<strong>cloud</strong>. Each section is labeled with the route that produced it.</p>
+
+<textarea id="notes" placeholder="e.g. 09:00 dentist, 11:00 call with investor, buy groceries, idea: launch notes for the new onboarding..."></textarea>
+<p><button id="go">Generate hybrid brief</button></p>
+<div id="out">Your brief will appear here.</div>
+<p class="note" id="mode-note">Prototype mode: until a Firebase project config is
+pasted in (see FIREBASE-SETUP.md), the on-device and cloud steps run as
+deterministic local stand-ins and are labeled PROTOTYPE. When a config is
+present, this page imports the Firebase AI Logic SDK (firebase-ai 12.5.0) and
+actually calls it at runtime, as the hackathon rules require.</p>
+
+<script type="module">
+// --- Firebase AI Logic wiring (2026-11-18, run 13) ---
+// Source: Firebase AI Logic "Get started" guide (Web), read 2026-11-18:
+//   Step 2/4 pattern — initializeApp(firebaseConfig);
+//   initializeAppCheck(app, { provider: new DebugProvider() }) for local dev;
+//   const ai = getAI(app, { backend: new GoogleAIBackend() });
+//   const model = getGenerativeModel(ai, { model: "gemini-4-hydrogen" });
+//   Step 5 — await model.generateContent(prompt), result.response.text().
+// SDK files verified reachable 2026-11-18 (HTTP 200):
+//   firebase-app.js / firebase-app-check.js / firebase-ai.js, all v12.5.0.
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+import { initializeAppCheck, DebugProvider, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app-check.js";
+import * as firebaseAI from "https://www.gstatic.com/firebasejs/12.5.0/firebase-ai.js";
+const { getAI, getGenerativeModel, GoogleAIBackend } = firebaseAI;
+
+// Firebase web config pasted 2026-11-19 (run 14): issued in the Firebase
+// console for project "life-manager-hybrid-brief" (Spark plan, AI Logic
+// enabled with the Gemini Developer API provider). These are public web
+// config identifiers, not secrets. Until App Check is registered and a
+// live call is verified, the page must not claim live AI in submissions.
+const firebaseConfig = {
+  apiKey: "AIzaSyAYXxeYJgpS6BfkfZLqsAMBihFdO-uA-tc",
+  authDomain: "life-manager-hybrid-brief.firebaseapp.com",
+  projectId: "life-manager-hybrid-brief",
+  storageBucket: "life-manager-hybrid-brief.firebasestorage.app",
+  messagingSenderId: "767151421599",
+  appId: "1:767151421599:web:31fc4c3e05dfda47fd8aaa",
+};
+const FIREBASE_CONFIGURED = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
+const MODEL_NAME = "gemini-4-hydrogen";
+
+let aiService = null;
+function ensureAI() {
+  if (aiService) return aiService;
+  const app = initializeApp(firebaseConfig);
+  // App Check (registered 2026-11-19, run 14): provider is Fraud Defense
+  // (reCAPTCHA Enterprise), site key below is a public client identifier.
+  // On localhost, use the debug provider instead (official Step 3, Web):
+  // the token printed in the browser console must be registered in
+  // Console > App Check > Apps > Manage debug tokens before calls succeed.
+  const APPCHECK_SITE_KEY = "6LegzyYuAAAAAC3RLWl-SZD_hzIKJjWgEB8Pz5_c";
+  if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    initializeAppCheck(app, { provider: new DebugProvider(), isTokenAutoRefreshEnabled: true });
+  } else {
+    initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY), isTokenAutoRefreshEnabled: true });
+  }
+  aiService = getAI(app, { backend: new GoogleAIBackend() });
+  return aiService;
+}
+
+function modelFor(mode) {
+  const ai = ensureAI();
+  // Hybrid routing: if this SDK build exposes InferenceMode, the private
+  // draft prefers on-device execution and the polish step prefers cloud.
+  // If it does not, both calls run on the cloud model and the route label
+  // says so — the label must never claim on-device when it was not used.
+  const IM = firebaseAI.InferenceMode;
+  if (IM && mode === "ON_DEVICE" && IM.PREFER_ON_DEVICE) {
+    return { model: getGenerativeModel(ai, { model: MODEL_NAME, mode: IM.PREFER_ON_DEVICE }), route: "Firebase AI Logic — on-device preferred" };
+  }
+  if (IM && mode === "CLOUD" && IM.ONLY_CLOUD) {
+    return { model: getGenerativeModel(ai, { model: MODEL_NAME, mode: IM.ONLY_CLOUD }), route: "Firebase AI Logic — cloud" };
+  }
+  return { model: getGenerativeModel(ai, { model: MODEL_NAME }), route: "Firebase AI Logic — cloud (no on-device mode in this SDK build)" };
+}
+
+async function hybridSummarize(text, mode) {
+  if (FIREBASE_CONFIGURED) {
+    const { model, route } = modelFor(mode);
+    const prompt = mode === "ON_DEVICE"
+      ? `Summarize these private notes into a short private draft. Do not add facts that are not in the notes.\n\n${text}`
+      : `Turn this material into a structured daily briefing: schedule first, then one focus block, then a short closing review prompt. Do not add facts that are not present.\n\n${text}`;
+    const result = await model.generateContent(prompt);
+    return { route, text: result.response.text(), live: true };
+  }
+  // Deterministic prototype stand-in (labeled as such in the UI).
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (mode === "ON_DEVICE") {
+    return { route: "PROTOTYPE on-device stand-in", text: `Draft (${words.length} words in): ${words.slice(0, 18).join(" ")}${words.length > 18 ? " …" : ""}`, live: false };
+  }
+  return { route: "PROTOTYPE cloud stand-in", text: `Brief: You have ${words.length} words of notes. Start with the first scheduled item, protect one focus block, and close the day by reviewing what actually happened.`, live: false };
+}
+
+document.getElementById("go").addEventListener("click", async () => {
+  const notes = document.getElementById("notes").value;
+  const out = document.getElementById("out");
+  if (!notes.trim()) { out.textContent = "Add some notes first."; return; }
+  out.textContent = "Working…";
+  try {
+    const draft = await hybridSummarize(notes, "ON_DEVICE");
+    const brief = await hybridSummarize(notes, "CLOUD");
+    out.innerHTML = "";
+    const d = document.createElement("div");
+    d.innerHTML = `<span class="route ${draft.live ? "device" : "proto"}">${draft.route}</span> `;
+    d.append(document.createTextNode(draft.text));
+    const b = document.createElement("div");
+    b.style.marginTop = "0.8rem";
+    b.innerHTML = `<span class="route ${brief.live ? "cloud" : "proto"}">${brief.route}</span> `;
+    b.append(document.createTextNode(brief.text));
+    out.append(d, b);
+  } catch (err) {
+    out.textContent = `Firebase AI Logic call failed: ${err && err.message ? err.message : err}`;
+  }
+});
+</script>
+</body>
+</html>
