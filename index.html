@@ -84,16 +84,19 @@ function ensureAI() {
 
 function modelFor(mode) {
   const ai = ensureAI();
+  // NOTE (2026-11-22): when mode is set, SDK 12.5.0 defaults the cloud
+  // params to {model: 'gemini-2.0-flash-lite'} (retired) unless inCloudParams
+  // is passed explicitly — verified in the CDN source and by live 404s.
   // Hybrid routing: if this SDK build exposes InferenceMode, the private
   // draft prefers on-device execution and the polish step prefers cloud.
   // If it does not, both calls run on the cloud model and the route label
   // says so — the label must never claim on-device when it was not used.
   const IM = firebaseAI.InferenceMode;
   if (IM && mode === "ON_DEVICE" && IM.PREFER_ON_DEVICE) {
-    return { model: getGenerativeModel(ai, { model: MODEL_NAME, mode: IM.PREFER_ON_DEVICE }), route: "Firebase AI Logic — on-device preferred" };
+    return { model: getGenerativeModel(ai, { model: MODEL_NAME, mode: IM.PREFER_ON_DEVICE, inCloudParams: { model: MODEL_NAME } }), route: "Firebase AI Logic — on-device preferred" };
   }
   if (IM && mode === "CLOUD" && IM.ONLY_CLOUD) {
-    return { model: getGenerativeModel(ai, { model: MODEL_NAME, mode: IM.ONLY_CLOUD }), route: "Firebase AI Logic — cloud" };
+    return { model: getGenerativeModel(ai, { model: MODEL_NAME, mode: IM.ONLY_CLOUD, inCloudParams: { model: MODEL_NAME } }), route: "Firebase AI Logic — cloud" };
   }
   return { model: getGenerativeModel(ai, { model: MODEL_NAME }), route: "Firebase AI Logic — cloud (no on-device mode in this SDK build)" };
 }
