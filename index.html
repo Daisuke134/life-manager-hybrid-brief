@@ -23,11 +23,10 @@
 <textarea id="notes" placeholder="e.g. 09:00 dentist, 11:00 call with investor, buy groceries, idea: launch notes for the new onboarding..."></textarea>
 <p><button id="go">Generate hybrid brief</button></p>
 <div id="out">Your brief will appear here.</div>
-<p class="note" id="mode-note">Prototype mode: until a Firebase project config is
-pasted in (see FIREBASE-SETUP.md), the on-device and cloud steps run as
-deterministic local stand-ins and are labeled PROTOTYPE. When a config is
-present, this page imports the Firebase AI Logic SDK (firebase-ai 12.5.0) and
-actually calls it at runtime, as the hackathon rules require.</p>
+<p class="note" id="mode-note">Firebase project config is present: this page imports
+the Firebase AI Logic SDK (firebase-ai 12.5.0) and calls it at runtime, as the
+hackathon rules require. If App Check rejects the call on this domain, the
+error is shown in the output area instead of a generated brief.</p>
 
 <script type="module">
 // --- Firebase AI Logic wiring (2026-11-18, run 13) ---
