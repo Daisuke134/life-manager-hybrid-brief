@@ -32,14 +32,14 @@ error is shown in the output area instead of a generated brief.</p>
 // --- Firebase AI Logic wiring (2026-11-18, run 13) ---
 // Source: Firebase AI Logic "Get started" guide (Web), read 2026-11-18:
 //   Step 2/4 pattern — initializeApp(firebaseConfig);
-//   initializeAppCheck(app, { provider: new DebugProvider() }) for local dev;
+//   (SDK 12.5.0: no DebugProvider export; debug token via self.FIREBASE_APPCHECK_DEBUG_TOKEN)
 //   const ai = getAI(app, { backend: new GoogleAIBackend() });
 //   const model = getGenerativeModel(ai, { model: "gemini-4-hydrogen" });
 //   Step 5 — await model.generateContent(prompt), result.response.text().
 // SDK files verified reachable 2026-11-18 (HTTP 200):
 //   firebase-app.js / firebase-app-check.js / firebase-ai.js, all v12.5.0.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-import { initializeAppCheck, DebugProvider, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app-check.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app-check.js";
 import * as firebaseAI from "https://www.gstatic.com/firebasejs/12.5.0/firebase-ai.js";
 const { getAI, getGenerativeModel, GoogleAIBackend } = firebaseAI;
 
